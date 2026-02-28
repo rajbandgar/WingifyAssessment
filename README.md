@@ -1,157 +1,171 @@
-# Financial Document Analyzer – Debug Assignment
+# Financial Document Analyzer
 
-## Objective
+## Overview
 
-This assignment required transforming an intentionally unstable AI-powered financial document analysis system into a fully functional and scalable solution.
+This project is an AI-powered system designed to analyze financial documents such as corporate earnings reports, investor updates, and financial disclosures.
 
-The core expectation was not just fixing surface-level bugs, but identifying deeper architectural weaknesses that would prevent the system from working reliably in real-world environments.
+The system extracts structured insights including:
 
-The goal evolved from making the system run to making it stable, concurrent, and production-aligned.
+* Financial health indicators
+* Investment signals
+* Risk factors
 
----
-
-# Methodology Used: XYZ Debug Framework
-
-Instead of debugging reactively, a structured engineering approach was followed:
-
-* **Found X** → Identified root cause
-* **Used Y** → Applied a targeted engineering solution
-* **Got Z** → Achieved a measurable stability or scalability improvement
-
-This ensured that the fixes were architectural rather than cosmetic.
+The repository provided for this assignment was intentionally unstable and incomplete.
+The primary goal was not only to fix visible errors, but to stabilize the system at an architectural level so that it could operate reliably under realistic workloads.
 
 ---
 
-# Issue 1: AI Tool Integration Failure
+# Engineering Approach
+
+Instead of debugging through trial and error, the following structured method was used:
+
+### XYZ Debug Framework
+
+For each failure:
+
+* **Found X** → Identified the root cause
+* **Used Y** → Applied an engineering solution
+* **Got Z** → Achieved measurable system stability
+
+This ensured long-term correctness rather than temporary fixes.
+
+---
+
+# Bugs Found & Fixes
+
+## 1. AI Tool Integration Failure
 
 ### Found
 
-The financial document reader was incorrectly implemented.
+The financial document reader was implemented as a raw function, while CrewAI expects tools to follow a structured interface.
 
-Raw functions were passed where CrewAI required structured tool instances.
-This caused runtime failures during task initialization due to Pydantic validation errors.
+This caused:
+
+* Runtime validation errors
+* Task initialization failures
 
 ### Used
 
 Refactored the reader into a CrewAI-compatible `BaseTool`:
 
-* Converted function-based implementation into structured tool abstraction
-* Ensured proper agent-tool lifecycle alignment
+* Introduced proper abstraction
+* Ensured tool-agent compatibility
+* Aligned with CrewAI execution lifecycle
 
 ### Got
 
-Agents successfully accessed and processed financial documents without initialization crashes.
+Agents successfully accessed PDF data without runtime crashes.
 
 ---
 
-# Issue 2: LLM Dependency Instability
+## 2. LLM Dependency Instability
 
 ### Found
 
-The system originally relied on OpenAI without proper configuration.
+The original implementation depended on OpenAI without proper configuration.
 
-This caused:
+This resulted in:
 
-* Missing credential failures
-* Model incompatibility issues
-* Unstable execution
+* API key errors
+* Model compatibility issues
+* Execution failures
 
 ### Used
 
-Migrated LLM execution to Google Gemini:
+Migrated the AI layer to Google Gemini:
 
-* Integrated CrewAI LLM abstraction layer
-* Configured tool compatibility with Gemini
-* Added safe initialization
+* Integrated via CrewAI’s LLM abstraction
+* Ensured compatibility with tool execution
+* Stabilized environment configuration
 
 ### Got
 
-Stable AI execution without dependency failures.
+Reliable AI execution without credential dependency issues.
 
 ---
 
-# Issue 3: Blocking Execution Architecture
+## 3. Blocking Execution Model
 
 ### Found
 
-Financial analysis ran synchronously through FastAPI.
+Financial analysis was executed synchronously inside FastAPI.
 
 Impact:
 
 * Long-running AI tasks blocked API responses
-* No concurrency
-* High latency
+* System could process only one document at a time
+* Risk of timeouts
 
 ### Used
 
 Re-architected execution using:
 
-* Redis as message broker
-* Celery as background worker system
+* Redis for task queuing
+* Celery for background workers
 
-Execution flow moved from:
+Execution moved from:
 
 User → API → AI → Response
 
 to:
 
-User → API → Queue → Worker → AI → Result
+User → API → Redis Queue → Celery Worker → AI → Result
 
 ### Got
 
 * Non-blocking API
-* Parallel document processing
-* Scalable request handling
+* Concurrent document processing
+* Improved scalability
 
 ---
 
-# Issue 4: Task Registration Failures
+## 4. Task Execution Failure
 
 ### Found
 
-Celery workers failed to execute tasks due to module discovery issues.
+Celery workers started successfully but ignored queued tasks.
 
-Workers started successfully but ignored queued jobs.
+Cause:
+
+* Tasks were not registered during worker boot
 
 ### Used
 
-Implemented explicit task registration:
-
-* Avoided autodiscovery
-* Ensured deterministic task loading
+* Explicit task registration
+* Avoided reliance on autodiscovery
 
 ### Got
 
-Background tasks executed reliably across worker processes.
+Background processing executed consistently across worker instances.
 
 ---
 
-# Issue 5: Environment Loading Crash
+## 5. Environment Loading Crash
 
 ### Found
 
-Celery workers crashed during startup with UTF-8 decoding errors.
+Celery workers crashed during startup due to UTF-8 decoding errors.
 
-Root cause:
+Investigation revealed:
 
 CrewAI internally invoked dotenv loading, which scanned the entire project directory.
 
-Uploaded PDF files were mistakenly interpreted as environment files, causing worker failure.
+Uploaded PDF files were mistakenly interpreted as environment files.
+
+Since PDFs are binary, this caused decoding failures.
 
 ### Used
 
-Controlled environment loading by:
-
-* Restricting dotenv to load only the intended `.env`
-* Preventing directory-wide scanning
+* Restricted dotenv to load only `.env`
+* Prevented directory-wide scanning
 
 ### Got
 
-Worker startup stabilized with zero runtime crashes.
+Worker initialization became stable and predictable.
 
 ---
 
-# Issue 6: Distributed File Accessibility
+## 6. Distributed File Access Issue
 
 ### Found
 
@@ -159,18 +173,20 @@ Background workers intermittently failed to access uploaded documents.
 
 Reason:
 
-Celery executes in a separate runtime context, making relative file paths unreliable.
+Celery operates in a separate execution context.
+
+Relative file paths used by FastAPI were not valid inside worker processes.
 
 ### Used
 
-Converted document storage to absolute paths to ensure consistency across:
-
-* API layer
-* Worker layer
+Converted uploaded document paths to absolute paths.
 
 ### Got
 
-Reliable document access during background execution.
+Consistent file access across:
+
+* API layer
+* Worker layer
 
 ---
 
@@ -186,20 +202,121 @@ User → API → AI → Response
 
 User → API → Redis Queue → Celery Worker → AI Processing → Result Retrieval
 
----
+This enables:
 
-# Engineering Impact
-
-The system now supports:
-
-* Concurrent financial document analysis
-* Stable AI execution
-* Fault-tolerant background processing
-* Scalable request handling
+* Parallel processing
+* High-latency AI workloads
+* Fault isolation
 
 ---
 
-# Technologies Applied
+# Setup Instructions
+
+## 1. Install Dependencies
+
+```bash
+pip install -r requirements.txt
+```
+
+---
+
+## 2. Start Redis
+
+```bash
+docker run -d -p 6379:6379 redis
+```
+
+---
+
+## 3. Configure Environment
+
+Create `.env`
+
+```
+GOOGLE_API_KEY=your_api_key_here
+```
+
+---
+
+## 4. Start Celery Worker
+
+```
+celery -A celery_worker.celery_app worker --loglevel=info
+```
+
+---
+
+## 5. Start API Server
+
+```
+uvicorn main:app --reload
+```
+
+---
+
+# Usage
+
+Upload financial documents such as:
+
+* Earnings reports
+* Investor presentations
+* Corporate filings
+
+---
+
+# API Documentation
+
+## Health Check
+
+GET /
+
+Returns:
+
+```
+Financial Document Analyzer API is running
+```
+
+---
+
+## Analyze Document
+
+POST /analyze
+
+Upload a financial PDF.
+
+Request:
+
+* file: PDF
+* query: Optional analysis instruction
+
+Response:
+
+```
+{
+  "status": "processing",
+  "task_id": "xyz"
+}
+```
+
+---
+
+## Check Status
+
+GET /status/{task_id}
+
+Returns:
+
+```
+{
+  "task_id": "xyz",
+  "status": "SUCCESS",
+  "result": "Analysis Output"
+}
+```
+
+---
+
+# Technologies Used
 
 * FastAPI – API Layer
 * CrewAI – Agent Orchestration
@@ -209,8 +326,19 @@ The system now supports:
 
 ---
 
+# Outcome
+
+The system now supports:
+
+* Concurrent document analysis
+* Stable AI execution
+* Non-blocking API responses
+* Scalable processing
+
+---
+
 # Conclusion
 
-This project was approached as a system stabilization challenge rather than a simple bug-fixing task.
+This assignment evolved from debugging broken functionality into designing a resilient AI processing pipeline.
 
-By identifying root causes and restructuring execution flow, the application evolved into a resilient AI processing pipeline capable of handling real-world workloads.
+By identifying systemic failures rather than patching symptoms, the project now reflects real-world execution patterns used in scalable AI systems.
